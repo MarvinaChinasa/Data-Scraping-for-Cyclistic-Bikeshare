@@ -1,0 +1,104 @@
+#the code below was used to select the tables needed from the copy of the cyclistic_bikeshare table for the month of July 2022, and at the same time separate the started_at column and ended_at column to get two new coluns each#
+SELECT ride_id,
+  rideable_type,
+  member_casual,
+  EXTRACT(date FROM started_at) AS start_date,
+  EXTRACT(time FROM started_at) AS start_time,
+  EXTRACT(date FROM ended_at) AS end_date,
+  EXTRACT(time FROM ended_at) AS end_time
+   FROM `my-project-sql-372805.cyclistic_bikes.cyclistic_bikes2207_copy`
+
+#Result saved in my-drive on Google Drive as cyclistic_bikes2207-1st-cleaning and was uploaded and stored in GC bucket as cyclistic_bikes2207-1#
+
+#2	This time I want to get my ride duration or simply put ride_length, so I will input a query that will extract the column by substracting end_time from start_time#
+SELECT ride_id,
+  rideable_type,
+  member_casual,
+  start_date,
+  end_date,
+  end_time - start_time AS ride_length
+ FROM `my-project-sql-372805.cyclistic_bikes.cyclistic_bikes2207-1`
+  ORDER BY (ride_length)DESC
+
+#The result of this query was saved in my drive in Google Drive as cyclistic_bikes2207-22nd-cleaning#
+#In order to proceed with the cleaning and preparation of the data, I also uploaded the cyclistic_bikes2207-22nd-cleaning table to bigquery and save as cylistic_bikes2207-22#
+
+#3	At this stage of my data cleaning and preparation, I will be converting the start_date to an integer with column name day_of_week_number and another column ‘day_of_week_name. And I will be doing this for only start_date because we are only interested in the day each rider started their ride and besides we already have the ride_length. Then I will extract all the columns I will be needing and move on to processing of the data#
+SELECT ride_id,
+  rideable_type,
+  member_casual,
+  ride_length,
+  start_date AS original_start_date,
+  EXTRACT(DAYOFWEEK FROM start_date) AS day_of_week_number,
+  CASE EXTRACT(DAYOFWEEK FROM start_date)
+    WHEN 1 THEN 'Sunday'
+    WHEN 2 THEN 'Monday'
+    WHEN 3 THEN 'Tuesday'
+    WHEN 4 THEN 'Wednesday'
+    WHEN 5 THEN 'Thursday'
+    WHEN 6 THEN 'Friday'
+    WHEN 7 THEN 'Saturday'
+  END AS day_of_week_name  
+  FROM `my-project-sql-372805.cyclistic_bikes.cyclistic_bikes2207-22`
+   ORDER BY (ride_length) DESC
+#The result of the above query is stored as a bigquery table as cyclistic_bikes2207-A#
+
+#I noticed that the ride_length contains negative figures. Next is to sort the table to filter out all the negative ride_length#
+SELECT * FROM `my-project-sql-372805.cyclistic_bikes.cycl_bikes2207-A`
+   WHERE
+    ride_length >= '0-0 0 0:0:1'
+#The result of this query is stop as a bigquery table as cyclistic_bikes2207-B
+Next is to change ride_length from string to time.
+But first, I have to remove the unwanted characters in ride_length, I need to find out the character length#
+
+#In order to find out the character length we ran the query below#
+SELECT ride_length, CHAR_LENGTH(ride_length) AS character_count
+ FROM `my-project-sql-372805.cyclistic_bikes.cycl_bikes2207-B`
+#The result shows that the character lengths varies, some 11, some 12, 13 but the unwanted character stops in the 6th position and the characters needed starts from the 7th position#
+
+#To remove the unwanted characters we ran the query below#
+SELECT ride_id,
+  member_casual,
+  day_of_week_number,
+  day_of_week_name,
+  ride_length,
+  SUBSTR(ride_length, 7, 11) AS modified_ride_length
+   FROM `my-project-sql-372805.cyclistic_bikes.cycl-bikes2207-B`
+#The result of this query was stored as a bigquery table as cycl_bikes2207-C#
+
+#To convert the modified_ride_length to time, we ran the query below#
+SELECT ride_id,
+  member_casual,
+  day_of_week_name,
+  day_of_week_number,
+  PARSE_TIME("%H:%M:%S", modified_ride_length) AS time_ride_length
+  FROM `my-project-sql-372805.cyclistic_bikes.cycl_bikes2207-C`
+   ORDER BY (time_ride_length) DESC
+
+#And finally to convert the modified_ride_length to ride_length_interval, I ran the query below and with the same table above to get a new table cycl_bikes2207-DD#
+SELECT ride_id,
+  member_casual,
+  day_of_week_name,
+  day_of_week_number,
+ CAST(modified_ride_length AS INTERVAL) AS  ride_length_interval
+  FROM `my-project-sql-372805.cyclistic_bikes.cycl_bikes2207-C`   
+  ORDER BY (modified_ride_length) DESC
+
+#The query below gives me my cleaned table from the prepare and process stage#
+SELECT ride_id,
+  member_casual,
+  day_of_week_name,
+  day_of_week_number,
+  ride_length_interval
+  FROM `my-project-sql-372805.cyclistic_bikes.cycl_bikes2207-DD`
+  ORDER BY (ride_length_interval) DESC
+
+#Then to get my final table from cycl_bikes2207-E, I used the query below which gave two new columns one for member and one for casual#
+SELECT *,
+  CASE WHEN member_casual = 'member' THEN 1 ELSE 0 END AS member,
+  CASE WHEN member_casual = 'casual' THEN 1 ELSE 0 END AS casual
+  FROM `my-project-sql-372805.cyclistic_bikes.cycl_bikes2207-E`
+#The result was saved in bigquery as cycl-bikes2207-G#
+
+
+
